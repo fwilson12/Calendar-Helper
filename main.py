@@ -12,12 +12,25 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 
+from dotenv import load_dotenv
+from pathlib import Path
+import os
+
+
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
 
-client = OpenAI(
-  api_key="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"
-)
+
+
+env_path = Path(__file__).resolve().parent / '.env'
+load_dotenv(env_path)
+
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+# print(OPENAI_API_KEY)
+
+
+
+client = OpenAI(api_key= OPENAI_API_KEY)
 
 
 def create(summary, location, description, starttime, endtime, timezone):
