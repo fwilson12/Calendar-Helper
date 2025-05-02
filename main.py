@@ -188,7 +188,7 @@ def day_events(day):
 
 
 
-def delete_event(event, day):
+def delete_event(title, day):
   creds = None
   # The file token.json stores the user's access and refresh tokens, and is
   # created automatically when the authorization flow completes for the first
@@ -237,20 +237,19 @@ def delete_event(event, day):
 
     # Convert the list of tuples to a string format that OpenAI can understand
     event_list_str = "\n".join([f"{name} -------> (id: {id})" for name, id in name_id_list])
-    print(event)
     print(event_list_str+'\n')
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
         store=True,
         messages=[
-            {"role": "system", "content": "You will be given a title of an event on a google calendar, and a list of event titles with an associated id string for that day. Your job is to pick which event the user is referring to. Return the id of the event you think the user is referring to, along with your reasoning for choosing that id.."},
-            {"role": "user", "content": f"Event to delete: {event}\nAvailable events:\n{event_list_str}"}
+            {"role": "system", "content": "You will be given a title of an event on a google calendar, and a list of event titles with an associated id string for that day. Your job is to pick which event the user is referring to, and return ONLY the id string of that event"},
+            {"role": "user", "content": f"Event to delete: {title}\nAvailable events:\n{event_list_str}"}
         ]
     )
 
     id = completion.choices[0].message.content
     print('id: ', id)
-    # service.events().delete(calendarId='primary', eventId=id).execute()
+    service.events().delete(calendarId='primary', eventId=id).execute()
     print("Event deleted.")
 
 
@@ -298,7 +297,7 @@ def chat():
       "parameters": {
         "type": "object",
         "properties": {
-          "event": {"type": "string", "description": "the title of the event the user wants to delete, which you will gather from the initial user message. Only the brief title should be included."},
+          "title": {"type": "string", "description": "the title of the event the user wants to delete, which you will gather from the initial user message. Only the brief title should be included."},
           "day": {"type": "string", "description": "the DTF of the given day without time. For example, may 24th would be 2025-05-24"}
         }
       }
@@ -312,15 +311,7 @@ def chat():
     model="gpt-4o-mini",
     store=True,
     messages=[
-      {"role": "system", "content": "You are a google calendar automation assistant that will make an appropriate api call "
-      "depending on the user's request. Be very concise and professional with your messages. You will be given a summary, location, description, "
-      "starttime, endtime, and timezone to input in that order to a python function called 'create', which takes in all of those attributes as strings. You have access to call this function."
-      "assume the timezone is Chicago for the last attribute after endtime, and use the dateTime format, e.g. '2025-04-30T05:00:00-05:00' for the start and end times."
-      "return the appropriate function call with your message. You also have the ability to call the 'read10()' function that returns the user's next 10 events, make sure you call that "
-      "function if you deem the user is asking for their upcoming events. Also, you have the access to the 'day_events(day)' function, where day is the user's requested day in "
-      "date-time format without time included. If the user doesn't include certain unnecessary details like location or time, put None in for those arguments and proceed with creating the event."
-      "You also have the ability to call the 'delete_event(event, day)' function, where event is the title of the event you want to delete and day is the user's requested day in "
-      "date-time format without time included."},
+      {"role": "system", "content": "You are a google calendar automation assistant that will make an appropriate api call depending on the user's request. Be very concise and professional with your messages. You will be given a summary, location, description, starttime, endtime, and timezone to input in that order to a python function called 'create', which takes in all of those attributes as strings. You have access to call this function. Assume the timezone is Chicago for the last attribute after endtime, and use the dateTime format, e.g. '2025-04-30T05:00:00-05:00' for the start and end times. Return the appropriate function call with your message. You also have the ability to call the 'read10()' function that returns the user's next 10 events, make sure you call that function if you deem the user is asking for their upcoming events. Also, you have the access to the 'day_events(day)' function, where day is the user's requested day in date-time format without time included. If the user doesn't include certain unnecessary details like location or time, put None in for those arguments and proceed with creating the event. You also have the ability to call the 'delete_event(event, day)' function, where event is ONLY the title string of the event you want to delete (e.g., 'Breakfast at Kerby Lane'), and day is the user's requested day in date-time format without time included. DO NOT return the entire event object, only return the title string for the event parameter."},
       {"role": "user", "content": str} 
     ],
     tools=[
@@ -370,7 +361,7 @@ def chat():
       day_events(day=function_args.get('day'))
 
     elif function_name == 'delete_event':
-      delete_event(event=function_args.get('event'), day=function_args.get('day'))
+      delete_event(title=function_args.get('title'), day=function_args.get('day'))
 
   else:
     print(message.content)
@@ -378,7 +369,3 @@ def chat():
   chat()
 
 chat()
-
-
-
-
