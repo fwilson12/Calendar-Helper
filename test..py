@@ -17,118 +17,22 @@ from pathlib import Path
 import os
 
 
-SCOPES = ["https://www.googleapis.com/auth/calendar"]
-
-
-
-
 env_path = Path(__file__).resolve().parent / '.env'
 load_dotenv(env_path)
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-# print(OPENAI_API_KEY)
-
 
 
 client = OpenAI(api_key= OPENAI_API_KEY)
 
 
-def create(summary, location, description, starttime, endtime, timezone):
-  creds = None
-  # The file token.json stores the user's access and refresh tokens, and is
-  # created automatically when the authorization flow completes for the first
-  # time.
-  if os.path.exists("token.json"):
-    creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-  # If there are no (valid) credentials available, let the user log in.
-  if not creds or not creds.valid:
-    if creds and creds.expired and creds.refresh_token:
-      creds.refresh(Request())
-    else:
-      flow = InstalledAppFlow.from_client_secrets_file(
-          "credentials.json", SCOPES
-      )
-      creds = flow.run_local_server(port=0)
-    # Save the credentials for the next run
-    with open("token.json", "w") as token:
-      token.write(creds.to_json())
-
-  
-  service = build("calendar", "v3", credentials=creds)
-
-    # Call the Calendar API
-  now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
-
-  event = {
-        'summary': summary,
-        'location': location,
-        'description': description,
-        'start': {
-            'dateTime': starttime,
-            'timeZone': timezone,
-            },
-        'end': {
-            'dateTime': endtime,
-            'timeZone': timezone,
-        },
-        }
-  event = service.events().insert(calendarId='primary', body=event).execute()
-  print( 'Event created: %s' % (event.get('htmlLink')))
 
 
-def read10():
-  """Shows basic usage of the Google Calendar API.
-  Prints the start and name of the next 10 events on the user's calendar.
-  """
-  creds = None
-  # The file token.json stores the user's access and refresh tokens, and is
-  # created automatically when the authorization flow completes for the first
-  # time.
-  if os.path.exists("token.json"):
-    creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-  # If there are no (valid) credentials available, let the user log in.
-  if not creds or not creds.valid:
-    if creds and creds.expired and creds.refresh_token:
-      creds.refresh(Request())
-    else:
-      flow = InstalledAppFlow.from_client_secrets_file(
-          "credentials.json", SCOPES
-      )
-      creds = flow.run_local_server(port=0)
-    # Save the credentials for the next run
-    with open("token.json", "w") as token:
-      token.write(creds.to_json())
 
-  try:
-    service = build("calendar", "v3", credentials=creds)
+SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
-    # Call the Calendar API
-    now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
-    print("Getting the upcoming 10 events")
-    events_result = (
-        service.events()
-        .list(
-            calendarId="primary",
-            timeMin=now,
-            maxResults=10,
-            singleEvents=True,
-            orderBy="startTime",
-        )
-        .execute()
-    )
-    events = events_result.get("items", [])
 
-    if not events:
-      print("No upcoming events found.")
-      return
 
-    # Prints the start and name of the next 10 events
-    for event in events:
-      start = event["start"].get("dateTime", event["start"].get("date"))
-      print(start, event["summary"])
-
-  except HttpError as error:
-    print(f"An error occurred: {error}")
 
 def day_events(day):
 
@@ -187,7 +91,6 @@ def day_events(day):
 
 
 
-
 def delete_event(event, day):
   creds = None
   # The file token.json stores the user's access and refresh tokens, and is
@@ -213,6 +116,7 @@ def delete_event(event, day):
 
     # Call the Calendar API
     now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    print("Getting events for "+day)
     events_result = (
         service.events()
         .list(
@@ -235,22 +139,19 @@ def delete_event(event, day):
     for event in events:
         name_id_list.append((event["summary"], event["id"]))
 
-    # Convert the list of tuples to a string format that OpenAI can understand
-    event_list_str = "\n".join([f"{name} -------> (id: {id})" for name, id in name_id_list])
-    print(event)
-    print(event_list_str+'\n')
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
         store=True,
         messages=[
-            {"role": "system", "content": "You will be given a title of an event on a google calendar, and a list of event titles with an associated id string for that day. Your job is to pick which event the user is referring to. Return the id of the event you think the user is referring to, along with your reasoning for choosing that id.."},
-            {"role": "user", "content": f"Event to delete: {event}\nAvailable events:\n{event_list_str}"}
+            {"role": "system", "content": "You will be given a title of an event on a google calendar, and a list of event titles with an associated id string for that day. Your job is to pick which event the user is referring to. Return the id of the event you think the user is referring to."},
+            {"role": "user", "content": event},
+            {"role": "user", "content": name_id_list}    
         ]
     )
 
     id = completion.choices[0].message.content
     print('id: ', id)
-    # service.events().delete(calendarId='primary', eventId=id).execute()
+    service.events().delete(calendarId='primary', eventId=id).execute()
     print("Event deleted.")
 
 
@@ -291,17 +192,6 @@ def chat():
           "day": {"type": "string", "description": "the DTF of the given day without time. For example, may 24th would be 2025-05-24"}
         }
       }
-    },
-    {
-      "name": "delete_event",
-      "description": "delete an event on a given day",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "event": {"type": "string", "description": "the title of the event the user wants to delete, which you will gather from the initial user message. Only the brief title should be included."},
-          "day": {"type": "string", "description": "the DTF of the given day without time. For example, may 24th would be 2025-05-24"}
-        }
-      }
     }
 
     ]
@@ -319,8 +209,7 @@ def chat():
       "return the appropriate function call with your message. You also have the ability to call the 'read10()' function that returns the user's next 10 events, make sure you call that "
       "function if you deem the user is asking for their upcoming events. Also, you have the access to the 'day_events(day)' function, where day is the user's requested day in "
       "date-time format without time included. If the user doesn't include certain unnecessary details like location or time, put None in for those arguments and proceed with creating the event."
-      "You also have the ability to call the 'delete_event(event, day)' function, where event is the title of the event you want to delete and day is the user's requested day in "
-      "date-time format without time included."},
+      ""},
       {"role": "user", "content": str} 
     ],
     tools=[
@@ -335,11 +224,8 @@ def chat():
         {
           "type": "function",
           "function": function_spec[2]
-        },
-        {
-          "type": "function",
-          "function": function_spec[3]
         }
+
     ],
     tool_choice="auto"
   )
@@ -369,16 +255,11 @@ def chat():
     elif function_name == 'day_events':
       day_events(day=function_args.get('day'))
 
-    elif function_name == 'delete_event':
-      delete_event(event=function_args.get('event'), day=function_args.get('day'))
-
   else:
     print(message.content)
 
   chat()
 
 chat()
-
-
 
 
