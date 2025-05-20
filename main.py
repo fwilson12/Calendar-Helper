@@ -75,6 +75,30 @@ def create(summary, location, description, starttime, endtime, timezone):
   event = service.events().insert(calendarId='primary', body=event).execute()
   print( 'Event created: %s' % (event.get('htmlLink')))
 
+def update(summary, location, description, starttime, endtime, timezone, event):
+  creds = None
+  # The file token.json stores the user's access and refresh tokens, and is
+  # created automatically when the authorization flow completes for the first
+  # time.
+  if os.path.exists("token.json"):
+    creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+  # If there are no (valid) credentials available, let the user log in.
+  if not creds or not creds.valid:
+    if creds and creds.expired and creds.refresh_token:
+      creds.refresh(Request())
+    else:
+      flow = InstalledAppFlow.from_client_secrets_file(
+          "credentials.json", SCOPES
+      )
+      creds = flow.run_local_server(port=0)
+    # Save the credentials for the next run
+    with open("token.json", "w") as token:
+      token.write(creds.to_json())
+
+  service = build("calendar", "v3", credentials=creds)
+
+    # Call the Calendar API
+  now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
 
 def read10():
   """Shows basic usage of the Google Calendar API.
@@ -185,9 +209,6 @@ def day_events(day):
   except HttpError as error:
     print(f"An error occurred: {error}")
 
-
-
-
 def delete_event(title, day):
   creds = None
   # The file token.json stores the user's access and refresh tokens, and is
@@ -237,7 +258,7 @@ def delete_event(title, day):
 
     # Convert the list of tuples to a string format that OpenAI can understand
     event_list_str = "\n".join([f"{name} -------> (id: {id})" for name, id in name_id_list])
-    print(event_list_str+'\n')
+    # print(event_list_str+'\n')
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
         store=True,
@@ -255,6 +276,8 @@ def delete_event(title, day):
 
   except HttpError as error:
     print(f"An error occurred: {error}")
+
+
 
 
 
