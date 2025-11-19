@@ -4,7 +4,7 @@ import json
 from dotenv import load_dotenv
 from pathlib import Path
 import os
-from functions import create, read10, day_events, delete_event
+from functions import create, readEvents, delete_event
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
@@ -18,58 +18,18 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 client = OpenAI(api_key= OPENAI_API_KEY)
 
 
-from vars import msg_history
-function_spec = [
-    {
-        "name": "create",
-        "description": "Create a Google Calendar meeting with given details",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "summary": {"type": "string", "description": "title(called summary) of the meeting"},
-                "location": {"type": "string", "description": "Location of the meeting"},
-                "description": {"type": "string", "description": "Description of the meeting"},
-                "starttime": {"type": "string", "description": "Start time in ISO 8601 format"},
-                "endtime": {"type": "string", "description": "End time in ISO 8601 format"},
-                "timezone": {"type": "string", "description": "Timezone of the event (usually 'America/Chicago')"},
-            },
-            "required": ["summary", 'location', "description", "starttime", "endtime", "timezone"],
-        },
-    },
-    {
-      "name": "read10",
-      "description": "returns the user's next 10 events on their calendar"
-    },
-    {
-      "name": "day_events",
-      "description": "returns all events for a given day",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "day": {"type": "string", "description": "the DTF of the given day without time. For example, may 24th would be 2025-05-24"}
-        }
-      }
-    },
-    {
-      "name": "delete_event",
-      "description": "delete an event on a given day",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "title": {"type": "string", "description": "the title of the event the user wants to delete, which you will gather from the initial user message. Only the brief title should be included."},
-          "day": {"type": "string", "description": "the DTF of the given day without time. For example, may 24th would be 2025-05-24"}
-        }
-      }
-    }
+from vars import msg_history, function_spec, summary_prompt, now, weekday
 
-    ]
+#print("The current time is " + weekday + ", " + now)
 
 while True:
 
   user_input = input("User: ")
+  if user_input == "exit":
+    break
   msg_history.append({"role": "user", "content": user_input})
   completion = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-5.1",
     messages=msg_history,
     tools=[
     {
@@ -83,10 +43,6 @@ while True:
     {
       "type": "function",
       "function": function_spec[2]
-    },
-    {
-      "type": "function",
-      "function": function_spec[3]
     }
     ],
     tool_choice="auto"
@@ -100,8 +56,11 @@ while True:
     print("Assistant: " + completion.choices[0].message.content)
     msg_history.append({"role": "assistant", "content": msg.content})
       
-  elif msg.tool_calls is not None:
+  if msg.tool_calls is not None:
     tool_call = msg.tool_calls[0]
+    
+    # print(msg.tool_calls[0])
+    
     function_name = tool_call.function.name
     function_args = json.loads(tool_call.function.arguments)
 
@@ -115,23 +74,23 @@ while True:
         timezone=function_args.get('timezone')
             )
       
-    elif function_name == "read10":
-      read10()
-
-    elif function_name == 'day_events':
-      day_events(day=function_args.get('day'))
+    elif function_name == "readEvents":
+      readEvents(
+        num_events=function_args.get('num_events'),
+        startime=function_args.get('starttime'),
+        endtime=function_args.get('endtime')
+        )
 
     elif function_name == 'delete_event':
       delete_event(title=function_args.get('title'), day=function_args.get('day'))
-
       
 
 
     msg_history.append({"role": "assistant", "content": "Called tool: " + tool_call.function.name + " with arguments " + str(tool_call.function.arguments)})
     
-    msg_history.append({"role": "user", "content": "in a few words generally describe the action you just performed in plain language, as if you're presenting the results/call you made (e.g. created an event at xxx at xxx time, or here's your upcoming events)"}) 
+    msg_history.append({"role": "user", "content": summary_prompt}) 
     completion2 = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5.1",
         messages=msg_history,
         tools=[
         {
@@ -145,10 +104,6 @@ while True:
         {
         "type": "function",
         "function": function_spec[2]
-        },
-        {
-        "type": "function",
-        "function": function_spec[3]
         }
         ],
         tool_choice="auto"
