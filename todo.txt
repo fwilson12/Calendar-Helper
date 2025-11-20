@@ -1,0 +1,32 @@
+1. Make delete function better 
+    - search events without having to specify a day | DONE
+    - be able to delete recurring events | DONE
+
+
+1.5 Ensure Agent Only Reports Successful Actions After Endpoint Confirmation
+    - No more error messages but the agent says it deleted/created something
+    - ALSO: Adress weird logs.
+
+2. Create event
+    - add support for creating recurring events | DONE
+    - ask user if event should be recurring after initial prompt message and before tool call | Yeah basically DONE
+    - if a time is not specified or if there is a conflict, either 
+        - autonomously schedule the event (around the conflict), and tell the user
+        - tell the user about the conflict and provide alternatives if conflict, or provide options if time is unspecified
+
+
+3. Update event feature
+    - allow for users to update events
+    - shold search for events similar to delete function
+    - should support editing recurrence, time changes, etc.
+
+4. Multiple tool calls
+    - Should be able to create/delete multiple events from one input.
+    - Could also return the schedules for multiple weeks (more than one readEvents call)
+
+5. (After the above)
+    - Start working on UI (Basic node.js interface w/ css, don't go too crazy)
+
+6. ???
+
+7. Profit

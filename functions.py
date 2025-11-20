@@ -61,18 +61,113 @@ def create(summary, location, description, starttime, endtime, timezone):
         'end': {
             'dateTime': endtime,
             'timeZone': timezone,
-        },
+        }       
         }
   event = service.events().insert(calendarId='primary', body=event).execute()
   #print( 'Event created: %s' % (event.get('htmlLink')))
   msg_history.append({"role": "system", "content": f"Event created: {event.get('htmlLink')}"})
 
+
+
+
+def create_recurring(
+    summary,
+    location,
+    description,
+    starttime,
+    endtime,
+    timezone,
+    frequency,                 # DAILY, WEEKLY, MONTHLY, YEARLY
+    interval=1,                # every N units
+    weekdays=None,             # ["MO","WE","FR"]
+    monthday=None,             # e.g. 15 for 15th of each month
+    nth_weekday=None,          # {"weekday": "TU", "nth": 1}
+    until=None,                # "YYYYMMDDT000000Z"
+    count=None,                # integer
+    exception_dates=None       # ["20250110T090000Z", ...]
+):
+    print("---TOOL CALL: CREATE RECURRING EVENT---")
+    service = get_service()
+
+    # ---------------------------
+    # Build RRULE
+    # ---------------------------
+    rrule_parts = [f"FREQ={frequency.upper()}"]
+
+    if interval:
+        rrule_parts.append(f"INTERVAL={interval}")
+
+    # Weekly patterns: BYDAY=MO,WE,FR
+    if weekdays:
+        byday = ",".join(weekdays)
+        rrule_parts.append(f"BYDAY={byday}")
+
+    # Simple monthly: BYMONTHDAY=15
+    if monthday:
+        rrule_parts.append(f"BYMONTHDAY={monthday}")
+
+    # Advanced monthly: BYDAY=1TU (1st Tue), -1MO (last Mon)
+    if nth_weekday:
+        nth = nth_weekday.get("nth")
+        weekday = nth_weekday.get("weekday")
+        rrule_parts.append(f"BYDAY={nth}{weekday}")
+
+    if until:
+        rrule_parts.append(f"UNTIL={until}")
+
+    if count:
+        rrule_parts.append(f"COUNT={count}")
+
+    rrule_string = ";".join(rrule_parts)
+
+    # ---------------------------
+    # Build EXDATE list (if any)
+    # ---------------------------
+    exdate_block = None
+    if exception_dates:
+        # Google requires: "EXDATE:20250110T090000Z,20250115T090000Z"
+        exdate_block = ",".join(exception_dates)
+
+    # ---------------------------
+    # Build Event Body
+    # ---------------------------
+    event = {
+        'summary': summary,
+        'location': location,
+        'description': description,
+        'start': {
+            'dateTime': starttime,
+            'timeZone': timezone,
+        },
+        'end': {
+            'dateTime': endtime,
+            'timeZone': timezone,
+        },
+        'recurrence': [
+            f"RRULE:{rrule_string}"
+        ]
+    }
+
+    if exdate_block:
+        event["recurrence"].append(f"EXDATE:{exdate_block}")
+
+    # ---------------------------
+    # Send to Google Calendar
+    # ---------------------------
+    event = service.events().insert(calendarId='primary', body=event).execute()
+
+    msg_history.append({
+        "role": "system",
+        "content": f"Recurring event created: {event.get('htmlLink')}"
+    })
+
+
 def update(summary, location, description, starttime, endtime, timezone, event):
   service = get_service()
   pass
 
-def readEvents(num_events, startime, endtime):
-  print("---TOOL CALL: READ EVENTS - START: " + startime + " END: " + endtime + "---")
+def readEvents(num_events, starttime, endtime):
+  print("---TOOL CALL: READ EVENTS - START: " + starttime + " END: " + endtime + "---")
   try:
     service = get_service()
 
@@ -82,7 +177,7 @@ def readEvents(num_events, startime, endtime):
         service.events()
         .list(
             calendarId="primary",
-            timeMin=startime,
+            timeMin=starttime,
             timeMax=endtime,
             maxResults=num_events,
             singleEvents=True,
@@ -112,8 +207,10 @@ def readEvents(num_events, startime, endtime):
 
 
 
-def delete_event(title, day):
+def delete_event(title, starttime, endtime):
+
   print("---TOOL CALL: DELETE EVENT---")
+  
   try:
     service = get_service()
 
@@ -121,9 +218,9 @@ def delete_event(title, day):
       service.events()
       .list(
         calendarId="primary",
-        timeMin=day+'T00:00:00-05:00',
-        timeMax=day+'T23:59:59-05:00',
-        maxResults=30,
+        timeMin=starttime,
+        timeMax=endtime,
+        maxResults=999,
         singleEvents=True,
         orderBy="startTime",
       )
@@ -158,6 +255,79 @@ def delete_event(title, day):
     
  
 
+
+  except HttpError as error:
+    msg_history.append({"role": "system", "content": f"An error occurred: {error}"})
+    print(f"An error occurred: {error}")
+
+
+
+
+def delete_recurring(title, starttime, endtime):
+
+  print("---TOOL CALL: DELETE RECURRING SERIES---")
+
+  try:
+    service = get_service()
+
+    # Retrieve recurring masters (singleEvents=False)
+    events_result = (
+      service.events()
+      .list(
+        calendarId="primary",
+        timeMin=starttime,
+        timeMax=endtime,
+        maxResults=999,
+        singleEvents=False, # <--- key
+        )
+        .execute()
+      )
+
+    events = events_result.get("items", [])
+
+    # Filter to only recurring *series masters*
+    recurring_masters = [
+      event for event in events
+      if event.get("recurrence") and not event.get("recurringEventId")
+    ]
+
+    if not recurring_masters:
+      msg_history.append({"role": "system", "content": "No recurring series found."})
+      return
+
+    name_id_list = []
+    for event in recurring_masters:
+      summary = event["summary"]
+      event_id = event["id"]
+      name_id_list.append((summary, event_id))
+
+    event_list_str = "\n".join([
+      f"{name} -------> (id: {id})"
+      for name, id in name_id_list
+    ])
+
+    completion = client.chat.completions.create(
+      model="gpt-5.1",
+      store=True,
+      messages=[
+        {"role": "system", "content": """Given a list of recurring event series names and their IDs, return ONLY the ID of the series 
+        that best matches the provided title. Return ONLY the ID."""},
+        {"role": "user", "content": f"Recurring series to delete: {title} \nAvailable series:\n{event_list_str}"}
+      ]
+    )
+
+    chosen_id = completion.choices[0].message.content
+
+    
+    service.events().delete(
+      calendarId="primary",
+      eventId=chosen_id
+    ).execute()
+
+    msg_history.append({
+      "role": "assistant",
+      "content": f"Deleted recurring series with ID: {chosen_id}, title: {title}"
+    })
 
   except HttpError as error:
     msg_history.append({"role": "system", "content": f"An error occurred: {error}"})
