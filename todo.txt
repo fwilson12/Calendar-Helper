@@ -6,6 +6,8 @@
 1.5 Ensure Agent Only Reports Successful Actions After Endpoint Confirmation
     - No more error messages but the agent says it deleted/created something
     - ALSO: Adress weird logs.
+    - Clean up functions.py functions
+
 
 2. Create event
     - add support for creating recurring events | DONE
@@ -15,10 +17,12 @@
         - tell the user about the conflict and provide alternatives if conflict, or provide options if time is unspecified
 
 
-3. Update event feature
+3. Update event feature |
     - allow for users to update events
     - shold search for events similar to delete function
     - should support editing recurrence, time changes, etc.
+    - fix this stupid bullshit with recurring events my god 
+
 
 4. Multiple tool calls
     - Should be able to create/delete multiple events from one input.
@@ -30,3 +34,10 @@
 6. ???
 
 7. Profit
+
+
+8. user preferences for scheduling
+    - efficiency vs. time in between
+    - weekends vs weekdays for meetings, etc
+    - am vs pm 
+    - other preferences, keep thinking

@@ -12,7 +12,7 @@ __pycache__/
 
 token.json
 credentials.json
-.txt
+*.txt
 
 # Distribution / packaging
 .Python

@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
-from vars import msg_history, system_prompt
+from vars import msg_history
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
@@ -63,12 +63,13 @@ def create(summary, location, description, starttime, endtime, timezone):
             'timeZone': timezone,
         }       
         }
-  event = service.events().insert(calendarId='primary', body=event).execute()
-  #print( 'Event created: %s' % (event.get('htmlLink')))
-  msg_history.append({"role": "system", "content": f"Event created: {event.get('htmlLink')}"})
+  try:
+    event = service.events().insert(calendarId='primary', body=event).execute()
+    return f"Event created: {event.get('htmlLink')}"
 
-
-
+  except HttpError as error:
+    msg_history.append({"role": "system", "content": f"An error occurred: {error}"})
+    print(f"An error occurred: {error}")
 
 def create_recurring(
     summary,
@@ -154,18 +155,15 @@ def create_recurring(
     # ---------------------------
     # Send to Google Calendar
     # ---------------------------
-    event = service.events().insert(calendarId='primary', body=event).execute()
+    
+    try:
+      event = service.events().insert(calendarId='primary', body=event).execute()
+      return f"Recurring event created: {event.get('htmlLink')}"
 
-    msg_history.append({
-        "role": "system",
-        "content": f"Recurring event created: {event.get('htmlLink')}"
-    })
-
-
-def update(summary, location, description, starttime, endtime, timezone, event):
-  service = get_service()
-  pass
-
+    except HttpError as error:
+      msg_history.append({"role": "system", "content": f"An error occurred: {error}"})
+      print(f"An error occurred: {error}")
+      
 def readEvents(num_events, starttime, endtime):
   print("---TOOL CALL: READ EVENTS - START: " + starttime + " END: " + endtime + "---")
   try:
@@ -192,20 +190,23 @@ def readEvents(num_events, starttime, endtime):
       return
 
     
-    msg = " "
-    for event in events:
-      start = event["start"].get("dateTime", event["start"].get("date"))
-      msg += f"{start} {event['summary']}\n"
+    try:
+      msg = " "
+      for event in events:
+        start = event["start"].get("dateTime", event["start"].get("date"))
+        end = event["end"].get("dateTime", event["end"].get("date"))
+        msg += f"{start} to {end}:  {event['summary']}\n"
+      
+      return "Retrieved events: \n" + msg
     
-    msg_history.append({"role": "system", "content": msg})
+    except HttpError as error:
+      msg_history.append({"role": "system", "content": f"Error processing events: {error}"})
+      print(f"Error processing events: {error}")
 
 
 
   except HttpError as error:
     print(f"An error occurred: {error}")
-
-
-
 
 def delete_event(title, starttime, endtime):
 
@@ -229,7 +230,7 @@ def delete_event(title, starttime, endtime):
     events = events_result.get("items", [])
     
     if not events:
-      msg_history.append({"role": "system", "content": "No events found."})
+      msg_history.append({"role": "tool", "content": "No events found."})
       return
       
     name_id_list = []
@@ -250,18 +251,20 @@ def delete_event(title, starttime, endtime):
 
     id = completion.choices[0].message.content
   
-    service.events().delete(calendarId='primary', eventId=id).execute()
-    msg_history.append({"role": "assistant", "content": f"Deleted event with ID: {id}, title: {title}"})
+    try:
+      service.events().delete(calendarId='primary', eventId=id).execute()
+      return f"Deleted event with ID: {id}, title: {title}"
     
+    except HttpError as error:
+      msg_history.append({"role": "system", "content": f"Failed to delete event with ID: {id}, title: {title}. Error: {error}"})
+      print(f"Failed to delete event with ID: {id}, title: {title}. Error: {error}")
+      return
  
 
 
   except HttpError as error:
     msg_history.append({"role": "system", "content": f"An error occurred: {error}"})
     print(f"An error occurred: {error}")
-
-
-
 
 def delete_recurring(title, starttime, endtime):
 
@@ -292,7 +295,7 @@ def delete_recurring(title, starttime, endtime):
     ]
 
     if not recurring_masters:
-      msg_history.append({"role": "system", "content": "No recurring series found."})
+      msg_history.append({"role": "tool", "content": "No recurring series found."})
       return
 
     name_id_list = []
@@ -319,16 +322,104 @@ def delete_recurring(title, starttime, endtime):
     chosen_id = completion.choices[0].message.content
 
     
-    service.events().delete(
+    try:
+      service.events().delete(
       calendarId="primary",
       eventId=chosen_id
     ).execute()
 
-    msg_history.append({
-      "role": "assistant",
-      "content": f"Deleted recurring series with ID: {chosen_id}, title: {title}"
-    })
+      return f"Deleted recurring series with ID: {chosen_id}, title: {title}"
+    
+    except HttpError as error:
+      msg_history.append({"role": "system", "content": f"Failed to delete recurring series with ID: {chosen_id}, title: {title}. Error: {error}"})
+      print(f"Failed to delete recurring series with ID: {chosen_id}, title: {title}. Error: {error}")
+      return
 
   except HttpError as error:
     msg_history.append({"role": "system", "content": f"An error occurred: {error}"})
     print(f"An error occurred: {error}")
+
+def patch_event(title, starttime, endtime, patch_body, modify_series=False):
+  print("---TOOL CALL: PATCH EVENT---")
+
+  try:
+    service = get_service()
+
+    # Fetch events in the time window
+    events_result = (
+      service.events()
+      .list(
+        calendarId="primary",
+        timeMin= "1000-01-01T00:00:00Z",  # far past
+        timeMax=endtime,
+        maxResults=999,
+        singleEvents=True,
+        orderBy="startTime",
+      )
+      .execute()
+    )
+    events = events_result.get("items", [])
+
+    if not events:
+      msg_history.append({"role": "tool", "content": "No events found to patch."})
+      return
+
+    # Build summary → id list for GPT selection (same as delete function)
+    name_id_list = []
+    for event in events:
+      name = event.get("summary", "No Title")
+      name_id_list.append((name, event["id"]))
+
+    event_list_str = "\n".join([f"{name}, {event['start']} -------> (id: {id})" for name, id in name_id_list])
+
+    # Ask GPT to match the correct event ID like your delete flow
+    completion = client.chat.completions.create(
+      model="gpt-5.1",
+      store=True,
+      messages=[
+        {"role": "system", "content": f"""Modify_Seires: {modify_series} | Given a list of event names and their corresponding IDs, 
+        return ONLY the ID of the event that matches the provided title pick the first event of the recurring series to patch if modify recurring is true."""},
+        {"role": "user", "content": f"Event to patch: {title}\nAvailable events:\n{event_list_str}"}
+      ]
+    )
+
+    target_id = completion.choices[0].message.content
+
+    # Determine if this event is part of a recurring series
+    # Fetch the event details so we can check fields
+    event_obj = service.events().get(calendarId="primary", eventId=target_id).execute()
+
+    if "recurringEventId" in event_obj:
+      # It's an instance of a series
+      if modify_series:
+        patch_id = event_obj["recurringEventId"]   # patch the entire series
+      else:
+        patch_id = target_id                       # patch only this instance
+   
+    else:
+      patch_id = target_id                            # normal single event
+
+    # Perform the patch
+    try:
+      service.events().patch(
+        calendarId="primary",
+        eventId=patch_id,
+        body=patch_body
+    ).execute()
+
+      if patch_body is None or patch_body == {}:
+        return "patch body was left blank. no changes were made"
+        
+      else:
+        return f"Patched event '{title}' (id: {patch_id}) with these changes: {patch_body}."
+
+    
+    except HttpError as error:
+      msg_history.append({"role": "system", "content": f"Failed to patch event '{title}' (id: {patch_id}): {error}"})
+      print(f"Failed to patch event '{title}' (id: {patch_id}): {error}")
+      return
+    
+  except Exception as error:
+    msg_history.append({"role": "system", "content": f"Patch failed: {error}"})
+    print(f"Patch failed: {error}")
+    return
