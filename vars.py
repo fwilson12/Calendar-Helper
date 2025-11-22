@@ -1,6 +1,6 @@
 from datetime import datetime
 
-
+# current init system prompt 
 system_prompt = """
 You are a Google Calendar automation assistant. Your job is to interpret the user's intent
 and call the correct tool ONLY when needed. You must be concise, professional, and accurate.
@@ -64,7 +64,7 @@ Your follow-up message after a tool result should:
 Be brief. Be practical. Do not over-explain.
 """
 
-
+# prompt for summarizing tool results
 summary_prompt = """
 You are generating a natural-language summary of the most recent tool result only, or making a follow up tool call if needed.
 
@@ -86,10 +86,11 @@ Your job:
 Keep it short and professional.
 """
 
-
+# tells the agent the current date and time, plus weekday for extra reference
 now = datetime.now().isoformat()
 weekday = datetime.now().strftime("%A")
 
+# updated after every user message, assistant chat response/tool summary, tool call, and system error message
 msg_history = [
     {
         "role": "system",
@@ -101,7 +102,7 @@ msg_history = [
     }
 ]
 
-
+# Definition of function specifications for tools the agent has access to
 function_spec = [
     {
         "name": "create",
@@ -112,11 +113,11 @@ function_spec = [
                 "summary": {"type": "string"},
                 "location": {"type": "string"},
                 "description": {"type": "string"},
-                "starttime": {"type": "string"},
-                "endtime": {"type": "string"},
+                "start": {"type": "string"},
+                "end": {"type": "string"},
                 "timezone": {"type": "string"},
             },
-            "required": ["summary", "location", "description", "starttime", "endtime", "timezone"],
+            "required": ["summary", "description", "start", "end", "timezone"],
         },
     },
 
@@ -148,7 +149,7 @@ function_spec = [
                 "exception_dates": {"type": "array", "items": {"type": "string"}}
             },
             "required": [
-                "summary", "location", "description", "starttime",
+                "summary", "description", "starttime",
                 "endtime", "timezone", "frequency"
             ]
         }
@@ -175,8 +176,8 @@ function_spec = [
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
-                "starttime": {"type": "string"},
-                "endtime": {"type": "string"}
+                "starttime": {"type": "string", "description": "Start time of the time window to search for the event to delete."},
+                "endtime": {"type": "string", "description": "End time of the time window to search for the event to delete."}
             }
         }
     },
@@ -188,8 +189,8 @@ function_spec = [
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
-                "starttime": {"type": "string"},
-                "endtime": {"type": "string"}
+                "starttime": {"type": "string", "description": "Start time of the time window to search for the recurring event series to delete."},
+                "endtime": {"type": "string", "description": "End time of the time window to search for the recurring event series to delete."}
             }
         }
     },
@@ -211,8 +212,9 @@ function_spec = [
                       "description": {"type": "string"},
                       "start": {"type": "object"},  # {"dateTime": "..."}
                       "end": {"type": "object"},    # {"dateTime": "..."}
-                      "recurrence": {"type": "array", "items": {"type": "string"},"description": "List of RRULE string(s) for recurrence"}
+                      "recurrence": {"type": "array", "items": {"type": "string"},"description": "Contains RRULE string of updated recurrence rules."}
                     },
+                    "description": "Fields to be updated at the user's request.",
                   },
                 "modify_series": {
                     "type": "boolean",
@@ -224,4 +226,5 @@ function_spec = [
     }
 ]
 
+# tools list for openai client argument
 TOOLS = [{"type": "function", "function": spec} for spec in function_spec]

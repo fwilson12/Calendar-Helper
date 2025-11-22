@@ -1,6 +1,5 @@
 from openai import OpenAI
 
-import datetime
 import os.path
 from dateutil import parser
 
@@ -29,9 +28,12 @@ client = OpenAI(api_key= OPENAI_API_KEY)
 def get_service():
   creds = None
  
+
+  # The file token.json stores the user's access and refresh tokens, and is created automatically when the authorization flow completes for the first time
   if os.path.exists("token.json"):
     creds = Credentials.from_authorized_user_file("token.json", SCOPES)
   
+  # If there are no (valid) credentials available, let the user log in.
   if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
       creds.refresh(Request())
@@ -47,22 +49,26 @@ def get_service():
 
 
 
-def create(summary, location, description, starttime, endtime, timezone):
+def create(summary, location, description, start, end, timezone):
   print("---TOOL CALL: CREATE EVENT---")
   service = get_service()
+  
+  # Event body 
   event = {
-        'summary': summary,
+        'summary': summary, # title of event
         'location': location,
         'description': description,
         'start': {
-            'dateTime': starttime,
+            'dateTime': start,
             'timeZone': timezone,
             },
         'end': {
-            'dateTime': endtime,
+            'dateTime': end,
             'timeZone': timezone,
         }       
         }
+  
+  # Put request
   try:
     event = service.events().insert(calendarId='primary', body=event).execute()
     return f"Event created: {event.get('htmlLink')}"
@@ -90,9 +96,8 @@ def create_recurring(
     print("---TOOL CALL: CREATE RECURRING EVENT---")
     service = get_service()
 
-    # ---------------------------
-    # Build RRULE
-    # ---------------------------
+  
+    # Build RRULE 
     rrule_parts = [f"FREQ={frequency.upper()}"]
 
     if interval:
@@ -121,17 +126,14 @@ def create_recurring(
 
     rrule_string = ";".join(rrule_parts)
 
-    # ---------------------------
+    
     # Build EXDATE list (if any)
-    # ---------------------------
     exdate_block = None
     if exception_dates:
         # Google requires: "EXDATE:20250110T090000Z,20250115T090000Z"
         exdate_block = ",".join(exception_dates)
 
-    # ---------------------------
     # Build Event Body
-    # ---------------------------
     event = {
         'summary': summary,
         'location': location,
@@ -152,10 +154,8 @@ def create_recurring(
     if exdate_block:
         event["recurrence"].append(f"EXDATE:{exdate_block}")
 
-    # ---------------------------
-    # Send to Google Calendar
-    # ---------------------------
-    
+
+    # Put request
     try:
       event = service.events().insert(calendarId='primary', body=event).execute()
       return f"Recurring event created: {event.get('htmlLink')}"
@@ -170,15 +170,14 @@ def readEvents(num_events, starttime, endtime):
     service = get_service()
 
     # Call the Calendar API
-    now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
     events_result = (
         service.events()
         .list(
             calendarId="primary",
-            timeMin=starttime,
-            timeMax=endtime,
+            timeMin=starttime,  # start of search windo
+            timeMax=endtime, # end of search window
             maxResults=num_events,
-            singleEvents=True,
+            singleEvents=True, # does not return series masters, only instances
             orderBy="startTime",
         )
         .execute()
@@ -191,6 +190,7 @@ def readEvents(num_events, starttime, endtime):
 
     
     try:
+      # make a string of events to return to Agent 
       msg = " "
       for event in events:
         start = event["start"].get("dateTime", event["start"].get("date"))
@@ -209,7 +209,6 @@ def readEvents(num_events, starttime, endtime):
     print(f"An error occurred: {error}")
 
 def delete_event(title, starttime, endtime):
-
   print("---TOOL CALL: DELETE EVENT---")
   
   try:
@@ -219,10 +218,10 @@ def delete_event(title, starttime, endtime):
       service.events()
       .list(
         calendarId="primary",
-        timeMin=starttime,
-        timeMax=endtime,
+        timeMin=starttime, # start of search window
+        timeMax=endtime, # end of search window
         maxResults=999,
-        singleEvents=True,
+        singleEvents=True, # get instances, not series masters
         orderBy="startTime",
       )
       .execute()
@@ -233,6 +232,7 @@ def delete_event(title, starttime, endtime):
       msg_history.append({"role": "tool", "content": "No events found."})
       return
       
+    # CRAZY HAck: Build a title --> id list of tuples for GPT to read; it picks the id of the event that matches the title argument
     name_id_list = []
     for event in events:
       name_id_list.append((event["summary"], event["id"]))
@@ -251,6 +251,8 @@ def delete_event(title, starttime, endtime):
 
     id = completion.choices[0].message.content
   
+
+    # delete request with chosen id 
     try:
       service.events().delete(calendarId='primary', eventId=id).execute()
       return f"Deleted event with ID: {id}, title: {title}"
@@ -281,7 +283,7 @@ def delete_recurring(title, starttime, endtime):
         timeMin=starttime,
         timeMax=endtime,
         maxResults=999,
-        singleEvents=False, # <--- key
+        singleEvents=False, # <--- key, get series masters
         )
         .execute()
       )
@@ -289,15 +291,14 @@ def delete_recurring(title, starttime, endtime):
     events = events_result.get("items", [])
 
     # Filter to only recurring *series masters*
-    recurring_masters = [
-      event for event in events
-      if event.get("recurrence") and not event.get("recurringEventId")
-    ]
+    recurring_masters = [event for event in events if event.get("recurrence") and not event.get("recurringEventId")]
 
     if not recurring_masters:
       msg_history.append({"role": "tool", "content": "No recurring series found."})
       return
 
+
+    # Build summary → id list for GPT selection, same crazy Hack as delete_event
     name_id_list = []
     for event in recurring_masters:
       summary = event["summary"]
@@ -321,7 +322,7 @@ def delete_recurring(title, starttime, endtime):
 
     chosen_id = completion.choices[0].message.content
 
-    
+    # delete request with gpt's chosen id
     try:
       service.events().delete(
       calendarId="primary",
@@ -351,9 +352,9 @@ def patch_event(title, starttime, endtime, patch_body, modify_series=False):
       .list(
         calendarId="primary",
         timeMin= "1000-01-01T00:00:00Z",  # far past
-        timeMax=endtime,
+        timeMax=endtime, # end of search window
         maxResults=999,
-        singleEvents=True,
+        singleEvents= not modify_series, # if modifying series, get masters; else get instances
         orderBy="startTime",
       )
       .execute()
@@ -372,7 +373,7 @@ def patch_event(title, starttime, endtime, patch_body, modify_series=False):
 
     event_list_str = "\n".join([f"{name}, {event['start']} -------> (id: {id})" for name, id in name_id_list])
 
-    # Ask GPT to match the correct event ID like your delete flow
+    # do i even need to explain this again guys just look above 
     completion = client.chat.completions.create(
       model="gpt-5.1",
       store=True,
@@ -382,7 +383,6 @@ def patch_event(title, starttime, endtime, patch_body, modify_series=False):
         {"role": "user", "content": f"Event to patch: {title}\nAvailable events:\n{event_list_str}"}
       ]
     )
-
     target_id = completion.choices[0].message.content
 
     # Determine if this event is part of a recurring series
@@ -392,21 +392,19 @@ def patch_event(title, starttime, endtime, patch_body, modify_series=False):
     if "recurringEventId" in event_obj:
       # It's an instance of a series
       if modify_series:
-        patch_id = event_obj["recurringEventId"]   # patch the entire series
+        patch_id = event_obj["recurringEventId"] # patch the entire series
       else:
-        patch_id = target_id                       # patch only this instance
+        patch_id = target_id  # patch only this instance
    
     else:
-      patch_id = target_id                            # normal single event
+      patch_id = target_id   # normal single event
 
-    # Perform the patch
+    # send the patch
     try:
-      service.events().patch(
-        calendarId="primary",
-        eventId=patch_id,
-        body=patch_body
-    ).execute()
+      service.events().patch(calendarId="primary", eventId=patch_id, body=patch_body).execute()
 
+
+      # sometimes patch_body is empty dict and the agent is dumb so this is a fallback that makes sure it knows it messed up
       if patch_body is None or patch_body == {}:
         return "patch body was left blank. no changes were made"
         

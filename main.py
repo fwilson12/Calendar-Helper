@@ -18,19 +18,18 @@ load_dotenv(env_path)
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 client = OpenAI(api_key= OPENAI_API_KEY)
 
-
 from vars import msg_history, summary_prompt, TOOLS
 
 
-
+# handles whatever tool call the dude makes
 def tool_call(function_name, function_args):
   if function_name == "create":
     return create(
       summary=function_args.get('summary', ''),
       location=function_args.get('location', ''),
       description=function_args.get('description', ''),
-      starttime=function_args.get('starttime'),
-      endtime=function_args.get('endtime'),
+      starttime=function_args.get('start'),
+      endtime=function_args.get('end'),
       timezone=function_args.get('timezone')
           )
     
@@ -83,13 +82,16 @@ def tool_call(function_name, function_args):
       modify_series=function_args.get('modify_series', False)
       )
 
-
+# i really need to fix this loop
 while True:
 
+  # initial user input
   user_input = input("\nUser: ")
   if user_input == "exit":
     break
   msg_history.append({"role": "user", "content": user_input})
+ 
+  # first openai response, usually a tool call 
   completion = client.chat.completions.create(
     model="gpt-5.1",
     messages=msg_history,
@@ -98,21 +100,28 @@ while True:
   )
   msg = completion.choices[0].message
   
+  # if the dude only is saying something. let the guy talk man
   if msg.content is not None and msg.tool_calls is None:
     print("Assistant: " + msg.content)
     msg_history.append({"role": "assistant", "content": msg.content})
       
+
+  # if the guy calls a tool we do this 
   if msg.tool_calls is not None:
     tool = msg.tool_calls[0]
     msg_history.append({"role": "assistant", "tool_calls": msg.tool_calls, "content": msg.content or ""})
     
+    # load the function from the tool call our guy returned 
     function_name = tool.function.name
     function_args = json.loads(tool.function.arguments)
-
+    
+    # the text that our tools return
     result = tool_call(function_name, function_args)
 
+    # add the tool call to message history, the call_id field is required, adds content if there is any 
     msg_history.append({"role": "tool", "tool_call_id": msg.tool_calls[0].id, "content": result or ""})
     
+    # have the guy tell us what he did, sometimes he does another tool though like a crazy rogue operator so yeah we'll talk about that later
     msg_history.append({"role": "system", "content": summary_prompt})
     completion2 = client.chat.completions.create(
         model="gpt-5.1",
@@ -122,22 +131,25 @@ while True:
     )
     msg2 = completion2.choices[0].message
     
-    
+    # if the dude only is saying something. usually a summary of what he just did or found 
     if msg2.content is not None and msg2.tool_calls is None:
       print("Assistant: " + msg2.content)
       msg_history.append({"role": "assistant", "content": msg2.content})
         
+    # sometimes he calls another tool, usually deleting or making an event after reading events
     if msg2.tool_calls is not None:
       tool = msg2.tool_calls[0]
       msg_history.append({"role": "assistant", "tool_calls": msg2.tool_calls, "content": msg2.content or ""})
       
+      # same as before, load the second tool call
       function_name = tool.function.name
       function_args = json.loads(tool.function.arguments)
 
       result = tool_call(function_name, function_args)
 
       msg_history.append({"role": "tool", "tool_call_id": msg2.tool_calls[0].id, "content": result or ""})
-      
+
+      # final summary of everything that happened. I will improve this later in case there needs to be a bigger chain of tool calls. 
       msg_history.append({"role": "system", "content": summary_prompt})
 
       completionFinal = client.chat.completions.create(
@@ -150,5 +162,5 @@ while True:
       msg_history.append({"role": "assistant", "content": msgFinal.content})
 
 
-  print(msg_history)
+  print(msg_history) # debugging 
 
