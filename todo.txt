@@ -7,6 +7,7 @@
     - No more error messages but the agent says it deleted/created something
     - ALSO: Adress weird logs.
     - Clean up functions.py functions
+    - DOOOOOOOOOOOOOONE     
 
 
 2. Create event
@@ -15,18 +16,20 @@
     - if a time is not specified or if there is a conflict, either 
         - autonomously schedule the event (around the conflict), and tell the user
         - tell the user about the conflict and provide alternatives if conflict, or provide options if time is unspecified
-
+    - DOOOOOOOOOOOOONE PRETTY MUCH
 
 3. Update event feature |
     - allow for users to update events
     - shold search for events similar to delete function
     - should support editing recurrence, time changes, etc.
     - fix this stupid bullshit with recurring events my god 
+    - YEEAAAAAAAAAAAAAH BABY DOOOOOOOOOOOOONE
 
 
 4. Multiple tool calls
     - Should be able to create/delete multiple events from one input.
     - Could also return the schedules for multiple weeks (more than one readEvents call)
+    - YEAAAAAH PRETTY MUCH DONE YEAH DUDE 
 
 5. (After the above)
     - Start working on UI (Basic node.js interface w/ css, don't go too crazy)

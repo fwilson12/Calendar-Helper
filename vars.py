@@ -130,8 +130,8 @@ function_spec = [
                 "summary": {"type": "string"},
                 "location": {"type": "string"},
                 "description": {"type": "string"},
-                "starttime": {"type": "string"},
-                "endtime": {"type": "string"},
+                "start": {"type": "string"},
+                "end": {"type": "string"},
                 "timezone": {"type": "string"},
                 "frequency": {"type": "string"},
                 "interval": {"type": "integer", "default": 1},
@@ -149,8 +149,8 @@ function_spec = [
                 "exception_dates": {"type": "array", "items": {"type": "string"}}
             },
             "required": [
-                "summary", "description", "starttime",
-                "endtime", "timezone", "frequency"
+                "summary", "description", "start",
+                "end", "timezone", "frequency"
             ]
         }
     },

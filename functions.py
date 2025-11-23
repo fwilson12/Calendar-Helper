@@ -81,8 +81,8 @@ def create_recurring(
     summary,
     location,
     description,
-    starttime,
-    endtime,
+    start,
+    end,
     timezone,
     frequency,                 # DAILY, WEEKLY, MONTHLY, YEARLY
     interval=1,                # every N units
@@ -139,11 +139,11 @@ def create_recurring(
         'location': location,
         'description': description,
         'start': {
-            'dateTime': starttime,
+            'dateTime': start,
             'timeZone': timezone,
         },
         'end': {
-            'dateTime': endtime,
+            'dateTime': end,
             'timeZone': timezone,
         },
         'recurrence': [
@@ -340,84 +340,79 @@ def delete_recurring(title, starttime, endtime):
     msg_history.append({"role": "system", "content": f"An error occurred: {error}"})
     print(f"An error occurred: {error}")
 
-def patch_event(title, starttime, endtime, patch_body, modify_series=False):
-  print("---TOOL CALL: PATCH EVENT---")
+def patch_event(title, starttime, endtime, patch_body, modify_series):
+  print(f'"---TOOL CALL: PATCH EVENT | MODIFY SERIES = {modify_series}---"')
 
   try:
     service = get_service()
 
-    # Fetch events in the time window
-    events_result = (
-      service.events()
-      .list(
-        calendarId="primary",
-        timeMin= "1000-01-01T00:00:00Z",  # far past
-        timeMax=endtime, # end of search window
-        maxResults=999,
-        singleEvents= not modify_series, # if modifying series, get masters; else get instances
-        orderBy="startTime",
-      )
-      .execute()
-    )
+    events_result = service.events().list(
+      calendarId="primary",
+      timeMin="1000-01-01T00:00:00Z", # just get like every event 
+      timeMax=endtime,
+      maxResults=999,
+      singleEvents=not modify_series, # if modify series is true, we don't want single events. but if its false we do
+    ).execute()
+
     events = events_result.get("items", [])
-
     if not events:
-      msg_history.append({"role": "tool", "content": "No events found to patch."})
-      return
+      return "No events found to patch."
 
-    # Build summary → id list for GPT selection (same as delete function)
+    # same hack as always
     name_id_list = []
     for event in events:
-      name = event.get("summary", "No Title")
-      name_id_list.append((name, event["id"]))
+      name_id_list.append((event["summary"], event["id"]))
 
-    event_list_str = "\n".join([f"{name}, {event['start']} -------> (id: {id})" for name, id in name_id_list])
-
-    # do i even need to explain this again guys just look above 
+    # Convert the list of tuples to a string format that OpenAI can understand
+    event_list_str = "\n".join([f"{name} -------> (id: {id})" for name, id in name_id_list])
     completion = client.chat.completions.create(
       model="gpt-5.1",
       store=True,
       messages=[
-        {"role": "system", "content": f"""Modify_Seires: {modify_series} | Given a list of event names and their corresponding IDs, 
-        return ONLY the ID of the event that matches the provided title pick the first event of the recurring series to patch if modify recurring is true."""},
-        {"role": "user", "content": f"Event to patch: {title}\nAvailable events:\n{event_list_str}"}
+          {"role": "system", "content": """Given a list of event names and their corresponding IDs, find the ID of the event that matches 
+          the provided title and return ONLY the ID."""},
+          {"role": "user", "content": f"Event to delete: {title}\nAvailable events:\n{event_list_str}"}
       ]
     )
+
     target_id = completion.choices[0].message.content
 
-    # Determine if this event is part of a recurring series
-    # Fetch the event details so we can check fields
+    # Determine whether this event is part of a series
     event_obj = service.events().get(calendarId="primary", eventId=target_id).execute()
 
-    if "recurringEventId" in event_obj:
-      # It's an instance of a series
-      if modify_series:
-        patch_id = event_obj["recurringEventId"] # patch the entire series
-      else:
-        patch_id = target_id  # patch only this instance
-   
+    if modify_series and "recurringEventId" in event_obj:
+      patch_id = event_obj["recurringEventId"]        # correct: patch master
     else:
-      patch_id = target_id   # normal single event
+      patch_id = target_id
 
-    # send the patch
-    try:
-      service.events().patch(calendarId="primary", eventId=patch_id, body=patch_body).execute()
+    # If patching series: NEVER use instance dates
+    if modify_series:
+      master = service.events().get(calendarId="primary", eventId=patch_id).execute()
 
+      # normalize start/end if user provided them — keep original date, swap time
+      if "start" in patch_body:
+        patch_body["start"] = {
+          "dateTime": master["start"]["dateTime"][:10] + "T" +
+                      patch_body["start"]["dateTime"].split("T")[1],
+          "timeZone": master["start"]["timeZone"]
+        }
 
-      # sometimes patch_body is empty dict and the agent is dumb so this is a fallback that makes sure it knows it messed up
-      if patch_body is None or patch_body == {}:
-        return "patch body was left blank. no changes were made"
-        
-      else:
-        return f"Patched event '{title}' (id: {patch_id}) with these changes: {patch_body}."
+      if "end" in patch_body:
+        patch_body["end"] = {
+          "dateTime": master["end"]["dateTime"][:10] + "T" +
+                      patch_body["end"]["dateTime"].split("T")[1],
+          "timeZone": master["end"]["timeZone"]
+        }
 
     
-    except HttpError as error:
-      msg_history.append({"role": "system", "content": f"Failed to patch event '{title}' (id: {patch_id}): {error}"})
-      print(f"Failed to patch event '{title}' (id: {patch_id}): {error}")
-      return
-    
+
+    service.events().patch(calendarId="primary", eventId=patch_id, body=patch_body).execute()
+
+    if not patch_body:
+      return "Patch body was empty. No changes applied."
+
+    return f"Patched event '{title}' (id:{patch_id}) with: {patch_body}"
+
   except Exception as error:
-    msg_history.append({"role": "system", "content": f"Patch failed: {error}"})
-    print(f"Patch failed: {error}")
-    return
+    print("Patch failed:", error)
+    return f"Patch failed: {error}"

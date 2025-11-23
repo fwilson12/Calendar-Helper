@@ -28,8 +28,8 @@ def tool_call(function_name, function_args):
       summary=function_args.get('summary', ''),
       location=function_args.get('location', ''),
       description=function_args.get('description', ''),
-      starttime=function_args.get('start'),
-      endtime=function_args.get('end'),
+      start=function_args.get('start'),
+      end=function_args.get('end'),
       timezone=function_args.get('timezone')
           )
     
@@ -38,8 +38,8 @@ def tool_call(function_name, function_args):
       summary=function_args.get('summary', ''),
       location=function_args.get('location', ''),
       description=function_args.get('description', ''),
-      starttime=function_args.get('starttime'),
-      endtime=function_args.get('endtime'),
+      start=function_args.get('start'),
+      endt=function_args.get('end'),
       timezone=function_args.get('timezone'),
       frequency=function_args.get('frequency'), 
       interval=function_args.get('interval'),
