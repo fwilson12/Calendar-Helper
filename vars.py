@@ -30,15 +30,14 @@ Use:
 - delete_recurring(...) ONLY when the user clearly indicates a repeating series
 
 ---PATCHING EXISTING EVENTS---
-- IMPORTANT: If patching a recurring series, ONLY MODIFY THE FIRST EVENT OF THE SERIES. This ensures subsequent events inherit the correct changes.
-- Use patch_event() to change event time, location, description, or recurrence.
-- patch_body must be constructed dynamically from the user request.
+- Use patch_event() to change event time, location, recurrence, etc.
+- NEVER just change the description of an event like (event is updated). Always directly update the fields requested. Doing so will result in permanent termination. 
+- patch_body must be constructed dynamically with json event resource values from the user request.
 - Map user intents to the correct Google Calendar fields within patch_body:
     - Change start time → {"start": {"dateTime": "..."}}
     - Change end time → {"end": {"dateTime": "..."}}
     - Change title → {"summary": "..."}
     - Change location → {"location": "..."}
-    - Change description → {"description": "..."}
     - Change recurrence → {"recurrence": ["RRULE:..."]}
 - Use modify_series=True to update the entire series of a recurring event.
 - Always include patch_body, never leave empty.
@@ -197,7 +196,8 @@ function_spec = [
 
     {
         "name": "patch_event",
-        "description": "Patch an existing event or event series with updated fields.",
+        "description": """Patch an existing event or event series with updated fields. patch_body must contain the fields the user wants to update
+                          in json format with their new values e.g. 'end': '2025...'""",
         "parameters": {
             "type": "object",
             "properties": {

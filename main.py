@@ -5,23 +5,25 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
+# get tools for agent
 from functions import create, create_recurring, readEvents, delete_event, delete_recurring, patch_event
 
+# for google api calls
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
 
-
+# for openai api key
 env_path = Path(__file__).resolve().parent / '.env'
 load_dotenv(env_path)
-
-
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 client = OpenAI(api_key= OPENAI_API_KEY)
 
+
+# agent context stuff 
 from vars import msg_history, summary_prompt, TOOLS
 
 
-# handles whatever tool call the dude makes
+# handles whatever tool call the guy makes
 def tool_call(function_name, function_args):
   if function_name == "create":
     return create(
@@ -100,22 +102,22 @@ while True:
   )
   msg = completion.choices[0].message
   
-  # if the dude only is saying something. let the guy talk man
+  # if the dude only is saying something
   if msg.content is not None and msg.tool_calls is None:
     print("Assistant: " + msg.content)
     msg_history.append({"role": "assistant", "content": msg.content})
       
 
-  # if the guy calls a tool we do this 
+  # if the guy calls a tool
   if msg.tool_calls is not None:
     tool = msg.tool_calls[0]
     msg_history.append({"role": "assistant", "tool_calls": msg.tool_calls, "content": msg.content or ""})
     
-    # load the function from the tool call our guy returned 
+    # load the function/arguments from the tool call our guy returned 
     function_name = tool.function.name
     function_args = json.loads(tool.function.arguments)
     
-    # the text that our tools return
+    # the text that our tool functions return
     result = tool_call(function_name, function_args)
 
     # add the tool call to message history, the call_id field is required, adds content if there is any 
@@ -163,4 +165,5 @@ while True:
 
 
   print(msg_history) # debugging 
+
 

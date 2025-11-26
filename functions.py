@@ -16,11 +16,12 @@ import os
 
 from vars import msg_history
 
+# for service requests
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
+# for openai api key
 env_path = Path(__file__).resolve().parent / '.env'
 load_dotenv(env_path)
-
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 client = OpenAI(api_key= OPENAI_API_KEY)
 
@@ -46,8 +47,6 @@ def get_service():
       token.write(creds.to_json())
   
   return build("calendar", "v3", credentials=creds)
-
-
 
 def create(summary, location, description, start, end, timezone):
   print("---TOOL CALL: CREATE EVENT---")
@@ -341,7 +340,7 @@ def delete_recurring(title, starttime, endtime):
     print(f"An error occurred: {error}")
 
 def patch_event(title, starttime, endtime, patch_body, modify_series):
-  print(f'"---TOOL CALL: PATCH EVENT | MODIFY SERIES = {modify_series}---"')
+  print(f'---TOOL CALL: PATCH EVENT | MODIFY SERIES = {modify_series}---')
 
   try:
     service = get_service()
@@ -374,22 +373,27 @@ def patch_event(title, starttime, endtime, patch_body, modify_series):
           {"role": "user", "content": f"Event to delete: {title}\nAvailable events:\n{event_list_str}"}
       ]
     )
-
+    # id of the instance event we found
     target_id = completion.choices[0].message.content
 
     # Determine whether this event is part of a series
     event_obj = service.events().get(calendarId="primary", eventId=target_id).execute()
 
+    # if we're changing a recurring series' rules, get the id of the master event
     if modify_series and "recurringEventId" in event_obj:
-      patch_id = event_obj["recurringEventId"]        # correct: patch master
+      patch_id = event_obj["recurringEventId"]        
+    
+    # if not, continue with the same id from mr. gpt
     else:
       patch_id = target_id
 
-    # If patching series: NEVER use instance dates
+    # retrieve said master event to get its start/end time so we can modify
+    # it with just its day so it doesn't screw up the recurring events in the series
     if modify_series:
       master = service.events().get(calendarId="primary", eventId=patch_id).execute()
 
-      # normalize start/end if user provided them — keep original date, swap time
+      # normalize start/end if user provided them | keep date of the master event, use time from the instance event the agent returned
+      # (since the agent will want to change the series with the date of the instance it pulled, which messes shit up)
       if "start" in patch_body:
         patch_body["start"] = {
           "dateTime": master["start"]["dateTime"][:10] + "T" +
@@ -405,7 +409,7 @@ def patch_event(title, starttime, endtime, patch_body, modify_series):
         }
 
     
-
+    # try the patch. channel the spirit of the flex tape. (?)
     service.events().patch(calendarId="primary", eventId=patch_id, body=patch_body).execute()
 
     if not patch_body:
