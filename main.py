@@ -164,4 +164,5 @@ while True:
       msg_history.append({"role": "assistant", "content": msgFinal.content})
 
 
-  print(msg_history) # debugging 
+  for msg in msg_history:
+    print(msg) # debugging 

@@ -347,7 +347,7 @@ def patch_event(title, starttime, endtime, patch_body, modify_series):
 
     events_result = service.events().list(
       calendarId="primary",
-      timeMin="1000-01-01T00:00:00Z", # just get like every event 
+      timeMin=starttime, # just get like every event 
       timeMax=endtime,
       maxResults=999,
       singleEvents=not modify_series, # if modify series is true, we don't want single events. but if its false we do
