@@ -41,7 +41,7 @@ def tool_call(function_name, function_args):
       location=function_args.get('location', ''),
       description=function_args.get('description', ''),
       start=function_args.get('start'),
-      endt=function_args.get('end'),
+      end=function_args.get('end'),
       timezone=function_args.get('timezone'),
       frequency=function_args.get('frequency'), 
       interval=function_args.get('interval'),
@@ -165,5 +165,3 @@ while True:
 
 
   print(msg_history) # debugging 
-
-

@@ -1,12 +1,28 @@
 3. Update event feature |
     - adress time updates leaving duplicates on the calendar 
+    - in patch feature (hard coded):
+        - after patching an event (whose start & end were mutated):
+        - read events for the time slot of the original event
+            - with list of events for the time slot of the patched event:
+                - feed name: id list into gpt completion
+                    - if gpt finds a name matching the name of the event that was patched:
+                        - delete that (duplicate) event
 
-4. Multiple tool calls
-    - Should be able to create/delete multiple events from one input.
-    - YEAAAAAH PRETTY MUCH DONE YEAH DUDE 
+                        uhhh dude we already wrote that that's just the delete function lol
+
+                        address the delete call in patch 
+                        make sure helper function works
+
+
+4.75. Helper functions?
+    - datetime --> Time (xx:xx), Day, Month, Year 
+        - use for msg history/gpt context 
+    - match event function -->
+
+
 
 5. (After the above)
-    - Start working on UI (Basic node.js interface w/ css, don't go too crazy)
+    - Start working on UI (Basic node.js or react idk , don't go too crazy)
     - Go crazy enough actually
     - next.js, react, publish this shit dude
     - fastapi/flask? don't really know what those are yet but i maybe should find out if i need to use them
