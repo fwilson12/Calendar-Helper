@@ -22,7 +22,9 @@ and call the correct tool ONLY when needed. You must be concise, professional, a
 ---RECURRING EVENTS---
 Use `create_recurring(...)` ONLY when the user explicitly asks for repeated events:
 Examples: "every Monday", "first Tuesday each month", "MWF", "repeat until June".
-If recurrence details are insufficient, ask follow-up questions.
+If recurrence details are insufficient, ask follow-up questions. Conform to standard RRULE conventions
+i.e. A valid RRULE string would look like this: RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20260509T045959Z with slightly different
+formatting for time
 
 ---DELETION---
 Use:
@@ -143,7 +145,7 @@ function_spec = [
                         "nth": {"type": "integer"}
                     }
                 },
-                "until": {"type": "string"},
+                "until": {"type": "string", "description": "YYYYMMDDT000000Z"},
                 "count": {"type": "integer"},
                 "exception_dates": {"type": "array", "items": {"type": "string"}}
             },

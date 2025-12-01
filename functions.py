@@ -124,6 +124,7 @@ def create_recurring(
         rrule_parts.append(f"COUNT={count}")
 
     rrule_string = ";".join(rrule_parts)
+    print(f'---RRULE STRING: {rrule_string}---')
 
     
     # Build EXDATE list (if any)
