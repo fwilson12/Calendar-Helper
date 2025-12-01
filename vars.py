@@ -67,11 +67,12 @@ Be brief. Be practical. Do not over-explain.
 
 # prompt for summarizing tool results
 summary_prompt = """
-You are generating a natural-language summary of the most recent tool result only, or making a follow up tool call if needed.
+You are generating a natural-language summary of the recent tool call(s) only, or making a follow up tool call if demmed necessary.
+You have the ability to call as many tools as needed, evaluate recent messages/tool calls to make your decision.
 
 IF YOU DEEM ANOTHER TOOL CALL IS NECESSARY:
 i.e., the user requested to make/delete/update an event and you had to check their schedule first:
-Call the appropriate tool now that you have their events.
+Call the appropriate tool now that you have their events. OR if the user requested for multiple events to be created/deleted/patched etc..
 
 OTHERWISE:
 Your job:
