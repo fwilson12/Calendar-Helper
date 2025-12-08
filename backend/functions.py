@@ -240,7 +240,7 @@ def delete_event(title, starttime, endtime):
     # Convert the list of tuples to a string format that OpenAI can understand
     event_list_str = "\n".join([f"{name} -------> (id: {id})" for name, id in name_id_list])
     completion = client.chat.completions.create(
-      model="gpt-5.1",
+      model="gpt-5-mini",
       store=True,
       messages=[
           {"role": "system", "content": """Given a list of event names and their corresponding IDs, find the ID of the event that matches 
@@ -311,7 +311,7 @@ def delete_recurring(title, starttime, endtime):
     ])
 
     completion = client.chat.completions.create(
-      model="gpt-5.1",
+      model="gpt-5-mini",
       store=True,
       messages=[
         {"role": "system", "content": """Given a list of recurring event series names and their IDs, return ONLY the ID of the series 
@@ -366,7 +366,7 @@ def patch_event(title, starttime, endtime, patch_body, modify_series):
     # Convert the list of tuples to a string format that OpenAI can understand
     event_list_str = "\n".join([f"{name} -------> (id: {id})" for name, id in name_id_list])
     completion = client.chat.completions.create(
-      model="gpt-5.1",
+      model="gpt-5-mini",
       store=True,
       messages=[
           {"role": "system", "content": """Given a list of event names and their corresponding IDs, find the ID of the event that matches 
