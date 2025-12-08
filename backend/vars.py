@@ -1,5 +1,6 @@
 from datetime import datetime
 
+
 # current init system prompt 
 system_prompt = """
 You are a Google Calendar automation assistant. Your job is to interpret the user's intent

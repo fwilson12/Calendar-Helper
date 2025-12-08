@@ -151,7 +151,7 @@ def chat(prev_tool_call = False):
       # add the tool call to message history, the call_id field is required, adds content if there is any 
       msg_history.append({"role": "tool", "tool_call_id": msg.tool_calls[0].id, "content": result or ""})
   
-  # call recursively with info about agent's last action (response or )
+  # call recursively with info about agent's last action (response or tool call)
   chat(called_a_tool)
 
 chat()
