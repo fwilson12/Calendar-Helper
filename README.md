@@ -10,6 +10,4 @@ update 12/12/25:
 
 flask implementaiton ~~coming soon~~
 
-google project auth looms
-
-may never be deployed
+will be public soon (?)

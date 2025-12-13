@@ -80,20 +80,14 @@ def chat(user_input):
 
 @app.route('/chat', methods=['POST'])
 def chat_route():
-    # the yap 
-    data = request.json
-    user_message = data.get('message', '')
+  # the yap 
+  data = request.json
+  user_message = data.get('message', '')
     
-    # Process message and get response
-    response = chat(user_message)
+  # Process message and get response
+  response = chat(user_message)
     
-    return jsonify({'response': response})
+  return jsonify({'response': response})
 
 if __name__ == '__main__':
-    app.run(debug=True)
-
-
-
-
-
-
+  app.run(debug=True)
