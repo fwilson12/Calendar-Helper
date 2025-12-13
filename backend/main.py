@@ -85,21 +85,7 @@ def tool_call(function_name, function_args):
       )
 
 # handles agent response loop, if a tool was previously called, summarize it. defaults to false (if the previous agent action was just a message)
-def chat(prev_tool_call = False):
-  
-  # if a tool was called in the last iteration, summarize it
-  if prev_tool_call:
-    msg_history.append({"role": "system", "content": summary_prompt})
-    tool_summary = client.chat.completions.create(
-            model="gpt-5.1",
-            messages=msg_history,
-        )
-    msgFinal = tool_summary.choices[0].message
-
-    print("Assistant: " + msgFinal.content)
-    msg_history.append({"role": "assistant", "content": msgFinal.content})
-    for msg in msg_history:
-      print(msg) # debugging 
+def chat():
   
   # gather new user input
   user_input = input("\nUser: ")
@@ -121,7 +107,7 @@ def chat(prev_tool_call = False):
     )
     msg = completion.choices[0].message
     
-    # if the dude only is saying something (w/o previously calling a tool), exit loop and move on to user response in recursive call
+    # if the dude only is saying something (w/o previously calling a tool), just a chat message
     if not called_a_tool and msg.content is not None and msg.tool_calls is None:
       print("Assistant: " + msg.content)
       msg_history.append({"role": "assistant", "content": msg.content})
@@ -133,25 +119,33 @@ def chat(prev_tool_call = False):
 
     # if the bot called a tool in its last message but not its current message, proceed to recursive call where its actions will be summarized
     elif called_a_tool and msg.content is not None and msg.tool_calls is None:
-      break
+      calling_tool = False
+      msg_history.append({"role": "system", "content": summary_prompt})
+      tool_summary = client.chat.completions.create(
+            model="gpt-5.1",
+            messages=msg_history,
+        )
+      msgFinal = tool_summary.choices[0].message
+
+      print("Assistant: " + msgFinal.content)
+      msg_history.append({"role": "assistant", "content": msgFinal.content})
+      for msg in msg_history:
+        print(msg) # debugging
 
     # if the guy calls a tool, continue the loop
     elif msg.tool_calls is not None:
       called_a_tool = True
       tool = msg.tool_calls[0]
       msg_history.append({"role": "assistant", "tool_calls": msg.tool_calls, "content": msg.content or ""})
-      
-      # load the function/arguments from the tool call our guy returned 
-      function_name = tool.function.name
+
+      function_name = tool.function.name  # load the function/arguments from the tool call our guy returned 
       function_args = json.loads(tool.function.arguments)
       
-      # the text that our tool functions return
-      result = tool_call(function_name, function_args)
-
-      # add the tool call to message history, the call_id field is required, adds content if there is any 
-      msg_history.append({"role": "tool", "tool_call_id": msg.tool_calls[0].id, "content": result or ""})
+      result = tool_call(function_name, function_args) # the text that our tool functions return
+      
+      msg_history.append({"role": "tool", "tool_call_id": msg.tool_calls[0].id, "content": result or ""}) # add the tool call to message history, the call_id field is required, adds content if there is any 
   
-  # call recursively with info about agent's last action (response or tool call)
-  chat(called_a_tool)
+  chat()
 
-chat()
+if __name__ == '__main__':
+  chat()
