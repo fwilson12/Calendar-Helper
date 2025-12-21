@@ -1,13 +1,3 @@
 # Calendar-Helper
 
-docs are probably not coming soon
-
-update 11/22/25:
-
-jk no update.
-
-update 12/12/25:
-
-flask implementaiton ~~coming soon~~
-
-will be public soon (?)
+[![Watch the video](https://img.youtube.com/vi/qWKtCeK2vFg/0.jpg)](https://www.youtube.com/watch?v=qWKtCeK2vFg)
