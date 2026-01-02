@@ -7,4 +7,9 @@ Here's a demo of the current version, currently working on getting the google cl
 [![current version demo](https://img.youtube.com/vi/qWKtCeK2vFg/0.jpg)](https://www.youtube.com/watch?v=qWKtCeK2vFg)
 
 
-Using flask + react and the openai/google apis 
+
+
+
+
+
+- i'm using flask + react and the openai/google apis 
